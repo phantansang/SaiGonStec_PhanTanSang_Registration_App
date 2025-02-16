@@ -17,7 +17,7 @@ export class AuthService {
   ) {
     const existingUser = await this.userModel.findOne({ email });
     if (existingUser) {
-      throw new BadRequestException('Email already exists');
+      throw new BadRequestException('Email đã tồn tại !');
     }
 
     const hashedPassword = await argon2.hash(password);
@@ -25,7 +25,6 @@ export class AuthService {
       100000 + Math.random() * 900000,
     ).toString();
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const user = await this.userModel.create({
       fullName,
       email,
@@ -36,23 +35,37 @@ export class AuthService {
     });
 
     await this.sendVerificationEmail(email, verificationCode);
-    return { message: 'Verification code sent to email' };
+    return { message: 'Đăng ký thành công, mã xác minh đã được gửi đến email của bạn !' };
   }
 
   async verifyEmail(email: string, code: string) {
     const user = await this.userModel.findOne({ email });
 
-    if (!user || user.verificationCode !== code) {
-      throw new BadRequestException('Invalid or expired verification code');
+    if (!user) {
+      throw new BadRequestException('Người dùng không tìm thấy');
+    }
+
+    if (user.failedAttempts >= 5) {
+      throw new BadRequestException(
+        'Bạn đã vượt quá số lần thử không thành công tối đa. Vui lòng thử lại sau !',
+      );
     }
 
     if (new Date() > user.verificationCodeExpires) {
-      throw new BadRequestException('Verification code expired');
+      throw new BadRequestException('Mã xác minh đã hết hạn');
+    }
+
+    if (user.verificationCode !== code) {
+      user.failedAttempts = (user.failedAttempts || 0) + 1;
+      await user.save();
+      throw new BadRequestException(
+        'Mã xác minh không chính xác, vui lý thử lại !',
+      );
     }
 
     user.isVerified = true;
     await user.save();
-    return { message: 'Email verified successfully' };
+    return { message: 'Xác minh email thành công, bạn có thể đăng nhập !' };
   }
 
   async sendVerificationEmail(email: string, code: string) {
@@ -67,8 +80,8 @@ export class AuthService {
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'Email Verification',
-      text: `Your verification code is: ${code}`,
+      subject: '[SAIGON STEC] Xác minh email',
+      text: `Mã xác minh của bạn là: ${code}`,
     });
   }
 }
