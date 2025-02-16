@@ -15,12 +15,11 @@ export class AuthService {
     password: string,
     phoneNumber: string,
   ) {
-
     const existingUser = await this.userModel.findOne({ email });
-  if (existingUser) {
-    throw new BadRequestException('Email already exists');
-  }
-  
+    if (existingUser) {
+      throw new BadRequestException('Email already exists');
+    }
+
     const hashedPassword = await argon2.hash(password);
     const verificationCode = Math.floor(
       100000 + Math.random() * 900000,
